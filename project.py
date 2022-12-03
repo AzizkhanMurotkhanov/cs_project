@@ -3,6 +3,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
+import datetime
 import json
 import re
 
@@ -76,7 +77,23 @@ def text_manipulation(text: str):
     return temp
 
 
-token = '5789959237:AAHEotTjsKa6rC6iYiSDb0hrk4Y9-MX2eNM'
+async def check():
+    for id in users:
+        user_date = users[id].get('date', None)
+        if user_date:
+            user_date = datetime.datetime.strptime(user_date, '%d %b %Y %H:%M')
+            ln = users[id]['language']
+            if datetime.datetime.now() - datetime.timedelta(hours=6) > user_date:
+                await bot.send_message(id, replies[ln]['Cus_notes'][0])
+                users[id] = {**users[id], **{'service': None, 'date': None, 'taken_by': None, 'notified': False}}
+                update_datafile('users')
+            elif datetime.datetime.now() + datetime.timedelta(hours=24) > user_date and users[id].get('taken_by', None) and not users[id].get('notified', None):
+                await bot.send_message(id, replies[ln]['Cus_notes'][1])
+                users[id] = {**users[id], **{'notified': True}}
+                update_datafile('users')
+
+
+token = ''
 bot = Bot(token=token)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
@@ -87,6 +104,7 @@ admins = get_datafile('admins.json')
 
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
+    await check()
     text = 'Chooze a language\nВыберите язык'
     await bot.send_message(message.chat.id, text, reply_markup=buttons(replies.keys()))
 
@@ -110,7 +128,7 @@ async def user_is_customer(call: types.callback_query):
     else:
         users[id] = {}
         users[id]['language'] = ln
-        await bot.edit_message_text(text=replies[ln]['Cus_reg'][0], chat_id=call.id, message_id=call.message.message_id)
+        await bot.edit_message_text(text=replies[ln]['Cus_reg'][0], chat_id=id, message_id=call.message.message_id)
         await Ask_cus.customer_name.set()
 
 
@@ -205,8 +223,7 @@ async def is_customer_sure(call: types.callback_query):
     id = str(call.message.chat.id)
     ln = users[id]['language']
     if call.data == replies[ln]['Sure'][0]:
-        users[id] = {**users[id], **
-                     {'service': None, 'date': None, 'taken_by': None}}
+        users[id] = {**users[id], **{'service': None, 'date': None, 'taken_by': None, 'notified': False}}
         update_datafile('users')
     await bot.edit_message_text(text=replies[ln]['Questions'][1], chat_id=id, message_id=call.message.message_id, reply_markup=buttons(replies[ln]['Cus_choices']))
 
@@ -227,7 +244,7 @@ async def chose_date(call: types.callback_query):
     id = str(call.message.chat.id)
     if call.message.text in [replies[i]['Cus_captions'][1] for i in replies]:
         ln = users[id]['language']
-        users[id] = {**users[id], **{'date': call.data, 'taken_by': None}}
+        users[id] = {**users[id], **{'date': call.data, 'taken_by': None, 'notified': False}}
         update_datafile('users')
         await bot.edit_message_text(text=replies[ln]['Cus_choices'][-1], chat_id=id, message_id=call.message.message_id)
         await bot.send_message(id, replies[ln]['Questions'][1], reply_markup=buttons(replies[ln]['Cus_choices']))
@@ -291,11 +308,10 @@ async def res_choice(call: types.callback_query):
         text = text_manipulation(call.message.text)
         await bot.edit_message_text(text=f'{replies[ln]["Tec_took_res"][0]}: {text["Client"]}\n{text["Phone"]}', chat_id=id, message_id=call.message.message_id)
         await bot.send_message(id, replies[ln]['Questions'][1], reply_markup=buttons(replies[ln]['Tec_choices']))
-        users[text['Reservation id']] = {
-            **users[text['Reservation id']], **{'taken_by': admins[id]['name']}}
+        users[text['Reservation id']] = {**users[text['Reservation id']], **{'taken_by': admins[id]['name'], 'notified': False}}
         update_datafile('users')
         cus_ln = users[text['Reservation id']]['language']
-        await bot.send_message(int(text['Reservation id']), f'{replies[cus_ln]["Tec_took_res"][1]}: {users[text["Reservation id"]].get("taken_by", "")}')
+        await bot.send_message(int(text['Reservation id']), f'{replies[cus_ln]["Tec_took_res"][1]}: {users[text["Reservation id"]]["taken_by"]}')
     elif call.data == replies[ln]['Tec_res_choices'][1]:
         text = text_manipulation(call.message.text)
         temp = list(users.keys()).index(text['Reservation id'])

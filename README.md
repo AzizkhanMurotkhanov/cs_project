@@ -1,6 +1,6 @@
 # Project "Reservation"
 ## Before
-Make sure that you have [aiogram](https://pypi.org/project/aiogram) framework.
+Make sure that you have [aiogram](https://pypi.org/project/aiogram) framework. Write your bot token in line 96 in project.py
 ## Beginning
 After **/start** command, you will choose language you want, then you will have two choices: **customer** or **technician**.
 ## Customer side
